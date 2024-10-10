@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fast Changer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" />
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+        }
+
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+
+        .container {
+            padding: 20px;
+            max-width: 900px;
+            margin: auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        .posto-item {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            background-color: #fff;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .posto-item:hover {
+            background-color: #f1f1f1;
+        }
+
+        .posto-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .posto-info strong {
+            font-size: 18px;
+            margin-bottom: 5px;
+            color: #007bff;
+        }
+
+        .button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 12px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .button:hover {
+            background-color: #0056b3;
+        }
+
+        .button:focus {
+            outline: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Adicionando a logo -->
+        <div style="text-align: center;">
+            <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" style="width: 150px;">
+        </div>
+
+        <h1>Postos de Carregamento Próximos</h1>
+        <div id="map"></div>
+        <div id="postos"></div>
+    </div>
+</body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+<script>
+    const map = L.map('map').setView([-2.5290, -44.3014], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    let userMarker;
+
+    // Ícones personalizados mais atraentes para os marcadores
+    const userIcon = L.icon({
+        iconUrl: '/static/img/user.png',  // Novo caminho correto para a imagem
+        iconSize: [30, 30],
+        iconAnchor: [20, 40],
+    });
+
+    const postoIcon = L.icon({
+        iconUrl: '/static/img/posto.png',  // Novo caminho correto para a imagem dos postos
+        iconSize: [30, 30],
+        iconAnchor: [15, 40],
+    });
+
+    const nearestPostoIcon = L.icon({
+        iconUrl: '/static/img/perto.png',  // Novo caminho correto para a imagem do posto mais próximo
+        iconSize: [30, 30],
+        iconAnchor: [15, 40],
+    });
+
+    function addPostosToMap(postos, userLocation) {
+        const postosDiv = document.getElementById('postos');
+        postosDiv.innerHTML = '';
+
+        // Ordenar postos pela distância em relação ao usuário
+        postos.sort((a, b) => {
+            const distanceA = calculateDistance(userLocation.lat, userLocation.lng, a.latitude, a.longitude);
+            const distanceB = calculateDistance(userLocation.lat, userLocation.lng, b.latitude, b.longitude);
+            return distanceA - distanceB;
+        });
+
+        postos.forEach((posto, index) => {
+            const distance = calculateDistance(userLocation.lat, userLocation.lng, posto.latitude, posto.longitude).toFixed(2);
+
+            // Escolher ícone baseado na proximidade
+            const icon = index === 0 ? nearestPostoIcon : postoIcon;
+
+            // Adicionar marcador ao mapa
+            const marker = L.marker([posto.latitude, posto.longitude], { icon }).addTo(map);
+            marker.bindPopup(`${posto.nome} - ${distance} km`).openPopup();
+
+            // Adicionar rótulo acima do marcador
+            const label = L.divIcon({
+                className: 'custom-label',
+                html: `<strong>${posto.nome}</strong>`,
+                iconSize: [100, 40],
+                iconAnchor: [50, -10],
+            });
+            L.marker([posto.latitude, posto.longitude], { icon: label }).addTo(map);
+
+            // Adicionar posto à lista com botão "Traçar Rota"
+            const postoItem = document.createElement('div');
+            postoItem.className = 'posto-item';
+
+            postoItem.innerHTML = `
+                    <div class="posto-info">
+                        <strong>${posto.nome}</strong>
+                        <span>${distance} km</span>
+                    </div>
+                    <a href="https://rotaficticia.com/${posto.nome}" target="_blank" class="button">Traçar Rota</a>
+                `;
+
+            postosDiv.appendChild(postoItem);
+        });
+    }
+
+    function getLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(showPosition, showError);
+        } else {
+            alert("Geolocalização não é suportada por este navegador.");
+        }
+    }
+
+    function showPosition(position) {
+        const lat = position.coords.latitude;
+        const lon = position.coords.longitude;
+
+        if (userMarker) {
+            map.removeLayer(userMarker);
+        }
+        userMarker = L.marker([lat, lon], { icon: userIcon }).addTo(map).bindPopup("Você está aqui!").openPopup();
+        map.setView([lat, lon], 15);
+
+        const userLocation = { lat, lng: lon };
+        fetch(`/postos/?location=${lat},${lon}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Erro na rede ao buscar postos.');
+                }
+                return response.json();
+            })
+            .then(data => {
+                addPostosToMap(data, userLocation);
+            })
+            .catch(error => {
+                console.error('Erro ao buscar dados dos postos:', error);
+            });
+    }
+
+    function showError(error) {
+        switch (error.code) {
+            case error.PERMISSION_DENIED:
+                alert("Usuário negou a solicitação de Geolocalização.");
+                break;
+            case error.POSITION_UNAVAILABLE:
+                alert("A localização do usuário não está disponível.");
+                break;
+            case error.TIMEOUT:
+                alert("A solicitação para obter a localização do usuário expirou.");
+                break;
+            case error.UNKNOWN_ERROR:
+                alert("Um erro desconhecido ocorreu.");
+                break;
+        }
+    }
+
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        const R = 6371; // Raio da Terra em km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distância em km
+    }
+
+    // Iniciar localização do usuário
+    getLocation();
+</script>
+</body>
+
+</html>
