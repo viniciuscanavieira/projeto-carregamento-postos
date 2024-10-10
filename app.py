@@ -6,7 +6,7 @@ app = Flask(__name__)
 # Lista de postos de carregamento em São Luís, MA
 postos = [
     {"nome": "Shopping da Ilha", "latitude": -5264022, "longitude": -44.2541628},
-    {"nome": "Shopping da Ilha", "latitude": -2.5276016, "longitude": -44.2547130},
+    {"nome": "Shopping da Islha", "latitude": -2.5276016, "longitude": -44.2547130},
     {"nome": "DOMVEL VEICULOS SEMINOVOS", "latitude": -2.5187308, "longitude": -44.2521448},
     {"nome": "São Luís Shopping", "latitude": -2.5121128, "longitude": -44.2857026},
     {"nome": "Eletroposto Equatorial", "latitude": -2.4954417, "longitude": -44.2619355},
